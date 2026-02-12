@@ -138,136 +138,171 @@
         </div>
     </div>
 
-    <script>
-        let cards = []; // Mulai kosong agar menerima data baru
+<script type="module">
+    // --- 1. IMPORT FIREBASE (Gunakan versi yang kompatibel) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, push, onValue, remove, set } 
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            
-            // --- URL PARAMETER CHECK ---
-            const params = new URLSearchParams(window.location.search);
-            const urlNama = params.get('nama');
-            const urlVa = params.get('va');
+    // --- 2. KONFIGURASI FIREBASE ANDA ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDEq2eSwz-z6k89cK9LPXZMpBzvmEr3kc4",
+        authDomain: "cetak-slip-va.firebaseapp.com",
+        databaseURL: "https://cetak-slip-va-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "cetak-slip-va",
+        storageBucket: "cetak-slip-va.firebasestorage.app",
+        messagingSenderId: "1072891523942",
+        appId: "1:1072891523942:web:43314a49241121e02a0ea7",
+        measurementId: "G-B8JK5NBLBZ"
+    };
 
-            if (urlNama && urlVa) {
-                cards.push({
-                    id: Date.now(),
-                    nama: decodeURIComponent(urlNama).toUpperCase(),
-                    va: decodeURIComponent(urlVa)
-                });
-                showToast(`Data ${urlNama} diterima dari URL!`);
-                
-                // Bersihkan URL agar bersih (Opsional)
-                window.history.replaceState({}, document.title, window.location.pathname);
-            } else {
-                // Data dummy default jika tidak ada parameter (bisa dikosongkan jika mau bersih total)
-                cards = [
-                    { id: 1, nama: 'CONTOH SISWA', va: '900-2270-0002' }
-                ];
-            }
-            
-            renderCards();
-            
-            document.getElementById('inputNama').addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') addCards();
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app); // Memulai Database
+    const dbRef = ref(db, 'slips'); // Nama tabel penyimpanan: 'slips'
+
+    // --- 3. LOGIKA REALTIME DATABASE ---
+    
+    // FUNGSI: Mendengarkan perubahan data (Live Update)
+    onValue(dbRef, (snapshot) => {
+        const data = snapshot.val();
+        const container = document.getElementById('cardContainer');
+        const emptyState = document.getElementById('emptyState');
+        
+        container.innerHTML = ''; // Bersihkan layar sebelum render ulang
+
+        if (data) {
+            // Ubah data object dari Firebase menjadi Array
+            const cardsArray = Object.keys(data).map(key => ({
+                id: key, // Simpan ID unik dari Firebase
+                ...data[key]
+            }));
+
+            // Render semua kartu
+            cardsArray.forEach((card, index) => {
+                const html = `
+                <div class="slip-card group relative animate-pop-in" style="animation-delay: ${index * 0.02}s">
+                    <button onclick="window.deleteCard('${card.id}')" class="btn-delete absolute -top-2 -right-2 bg-white text-red-500 border border-red-100 rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10 hover:bg-red-500 hover:text-white">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                    <div class="slip-row justify-center font-bold">SMARTCARD</div>
+                    <div class="slip-row">
+                        <div class="label-col">NAMA : ${card.nama} </div>
+                    </div>
+                    <div class="slip-row font-bold">
+                        <div class="label-col">NO.REK/VA</div><div class="separator-col">:</div>
+                        <div class="content-col">${card.va}</div>
+                    </div>
+                    <div class="slip-row" style="font-size: 11.5pt;">
+                        <div style="transform-origin: left; transform: scaleX(0.9); white-space: nowrap;">
+                            TRANFER DARI ATM SELAIN BSI : <span class="font-bold">451</span>
+                        </div>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
             });
-        });
-
-        // --- LISTENER PESAN DARI TAMPERMONKEY (ADD WITHOUT RELOAD) ---
-        window.addEventListener('message', function(event) {
-            // Pastikan tipe pesan sesuai
-            if (event.data && event.data.type === 'ADD_CARD') {
-                const newData = event.data;
-                
-                cards.push({
-                    id: Date.now(), // ID Unik
-                    nama: newData.nama.toUpperCase(),
-                    va: newData.va
-                });
-                
-                renderCards();
-                showToast(`Data ${newData.nama} ditambahkan!`);
-            }
-        });
-
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            const colorClass = type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-700 border-slate-200';
-            toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border ${colorClass} shadow-lg animate-pop-in pointer-events-auto`;
-            toast.innerHTML = `<i data-lucide="${type === 'error' ? 'alert-circle' : 'check-circle-2'}" class="w-5 h-5"></i><span class="text-sm font-medium">${message}</span>`;
-            container.appendChild(toast);
-            lucide.createIcons({ root: toast });
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        function renderCards() {
-            const container = document.getElementById('cardContainer');
-            const emptyState = document.getElementById('emptyState');
-            document.getElementById('totalCountDisplay').innerText = cards.length;
-
-            if (cards.length === 0) {
-                container.innerHTML = '';
-                emptyState.style.display = 'flex';
-                return;
-            } else {
-                emptyState.style.display = 'none';
-            }
-
-            container.innerHTML = '';
-            cards.forEach((card, index) => {
-                container.innerHTML += `
-                    <div class="slip-card group relative animate-pop-in" style="animation-delay: ${index * 0.02}s">
-                        <button onclick="deleteCard(${card.id})" class="btn-delete absolute -top-2 -right-2 bg-white text-red-500 border border-red-100 rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10 hover:bg-red-500 hover:text-white">
-                            <i data-lucide="x" class="w-3 h-3"></i>
-                        </button>
-                        <div class="slip-row justify-center font-bold">SMARTCARD</div>
-                        <div class="slip-row">
-                            <div class="label-col">NAMA : ${card.nama} </div>
-                        </div>
-                        <div class="slip-row font-bold">
-                            <div class="label-col">NO.REK/VA</div><div class="separator-col">:</div>
-                            <div class="content-col">${card.va}</div>
-                        </div>
-                        <div class="slip-row" style="font-size: 11.5pt;">
-                            <div style="transform-origin: left; transform: scaleX(0.9); white-space: nowrap;">
-                                TRANFER DARI ATM SELAIN BSI : <span class="font-bold">451</span>
-                            </div>
-                        </div>
-                    </div>`;
-            });
-            lucide.createIcons();
-        }
-
-        function addCards() {
-            const namaInput = document.getElementById('inputNama');
-            const vaInput = document.getElementById('inputVa');
-            const jumlah = parseInt(document.getElementById('inputJumlah').value) || 1;
             
-            if (!vaInput.value) return showToast('Nomor VA harus diisi', 'error');
+            emptyState.style.display = 'none';
+            document.getElementById('totalCountDisplay').innerText = cardsArray.length;
+        } else {
+            emptyState.style.display = 'flex';
+            document.getElementById('totalCountDisplay').innerText = '0';
+        }
+        
+        lucide.createIcons(); // Render ulang icon
+    });
 
-            for (let i = 0; i < jumlah; i++) {
-                cards.push({ id: Date.now() + i, nama: namaInput.value.toUpperCase(), va: vaInput.value });
-            }
-            namaInput.value = '';
-            namaInput.focus();
-            renderCards();
-            showToast(`${jumlah} Slip Berhasil Ditambahkan`);
+    // --- 4. FUNGSI-FUNGSI AKSI (Wajib pakai window. karena type="module") ---
+
+    // Tambah Data Manual
+    window.addCards = function() {
+        const namaInput = document.getElementById('inputNama');
+        const vaInput = document.getElementById('inputVa');
+        const jumlah = parseInt(document.getElementById('inputJumlah').value) || 1;
+        
+        if (!vaInput.value) {
+            alert('Nomor VA harus diisi');
+            return;
         }
 
-        function deleteCard(id) {
-            cards = cards.filter(c => c.id !== id);
-            renderCards();
+        // Kirim ke Firebase (Looping sesuai jumlah copy)
+        for (let i = 0; i < jumlah; i++) {
+            push(dbRef, {
+                nama: namaInput.value.toUpperCase(),
+                va: vaInput.value,
+                timestamp: Date.now()
+            });
         }
+        
+        // Reset Input
+        namaInput.value = '';
+        namaInput.focus();
+        showToast(`${jumlah} Slip berhasil dikirim ke Server`);
+    };
 
-        function clearAll() {
-            if (cards.length > 0 && confirm('Hapus semua?')) {
-                cards = [];
-                renderCards();
-            }
+    // Hapus Satu Kartu
+    window.deleteCard = function(firebaseId) {
+        remove(ref(db, 'slips/' + firebaseId));
+    };
+
+    // Hapus Semua (Reset)
+    window.clearAll = function() {
+        if (confirm('Yakin hapus SEMUA data di server? Semua komputer akan kosong.')) {
+            set(dbRef, null);
         }
-    </script>
+    };
+
+    // --- 5. INTEGRASI EKSTERNAL (URL & TAMPERMONKEY) ---
+
+    // Cek URL Parameter saat pertama kali buka
+    const params = new URLSearchParams(window.location.search);
+    const urlNama = params.get('nama');
+    const urlVa = params.get('va');
+
+    if (urlNama && urlVa) {
+        push(dbRef, {
+            nama: decodeURIComponent(urlNama).toUpperCase(),
+            va: decodeURIComponent(urlVa),
+            timestamp: Date.now()
+        }).then(() => {
+            // Bersihkan URL agar tidak input ganda saat refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showToast(`Data ${urlNama} masuk dari URL!`);
+        });
+    }
+
+    // Listener Pesan dari Tampermonkey
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'ADD_CARD') {
+            push(dbRef, {
+                nama: event.data.nama.toUpperCase(),
+                va: event.data.va,
+                timestamp: Date.now()
+            });
+            showToast(`Data ${event.data.nama} diterima dari Admin!`);
+        }
+    });
+
+    // --- 6. UTILITIES ---
+    function showToast(message) {
+        const container = document.getElementById('toastContainer');
+        if(!container) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border bg-white text-slate-700 border-slate-200 shadow-lg animate-pop-in pointer-events-auto`;
+        toast.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5 text-green-500"></i><span class="text-sm font-medium">${message}</span>`;
+        container.appendChild(toast);
+        lucide.createIcons({ root: toast });
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Inisialisasi awal
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+    });
+</script>
 </body>
 </html>
+
 
 
