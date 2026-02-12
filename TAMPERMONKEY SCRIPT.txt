@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Kirim ReactTable ke CETAK VA APP
+// @name         CETAK VA APP Script
 // @namespace    http://tampermonkey.net/
 // @version      2.4
 // @description  Tombol cetak khusus untuk tabel React (rt-table) di PSP Admin
@@ -12,7 +12,7 @@
     'use strict';
 
     // --- KONFIGURASI PENTING ---
-    const TARGET_APP_URL = "http://localhost/CETAK-VA/";
+    const TARGET_APP_URL = "https://cetak-va.vercel.app/";
 
     // Variabel untuk menyimpan referensi tab Smart Slip
     let smartSlipWindow = null;
@@ -119,5 +119,6 @@
 
     // Jalankan pengecekan setiap detik
     setInterval(addPrintButtons, 1000);
+
 
 })();
